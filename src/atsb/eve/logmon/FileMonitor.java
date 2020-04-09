@@ -22,8 +22,8 @@ public class FileMonitor {
 
 	private Logfile logfile;
 	private List<NewLineListener> listeners;
-	private boolean ignoreExisting;
 	private Thread t;
+	private boolean paused;
 
 	public FileMonitor(Logfile log) throws FileNotFoundException {
 		if (log.file == null || !log.file.isFile() || !log.file.exists()) {
@@ -31,11 +31,7 @@ public class FileMonitor {
 		}
 		logfile = log;
 		listeners = new ArrayList<NewLineListener>();
-		ignoreExisting = false;
-	}
-
-	public void setIgnoreExisting(boolean ignore) {
-		ignoreExisting = ignore;
+		paused = false;
 	}
 
 	public Logfile getLogfile() {
@@ -57,12 +53,12 @@ public class FileMonitor {
 					boolean running = true;
 					while (running) {
 						String line = "";
-						if ((line = reader.readLine()) != null) {
+						if (!paused && (line = reader.readLine()) != null) {
 							line = line.trim();
 							// dont notify on the initial file read if ignore existing is true
 							// or if it's an empty line
-							if (!(ignoreExisting && firstRead) && !line.isEmpty()) {
-								notifyListeners(line);
+							if (!line.isEmpty()) {
+								notifyListeners(firstRead, line);
 							}
 						} else {
 							firstRead = false;
@@ -102,10 +98,18 @@ public class FileMonitor {
 		System.out.println("Stopped watching [" + logfile.key() + "] : " + logfile.file.getName());
 	}
 
-	private void notifyListeners(String line) {
+	public synchronized void pause() {
+		paused = true;
+	}
+
+	public synchronized void resume() {
+		paused = false;
+	}
+
+	private void notifyListeners(boolean firstRead, String line) {
 		synchronized (listeners) {
 			for (NewLineListener l : listeners) {
-				l.newLine(line);
+				l.newLine(firstRead, line);
 			}
 		}
 	}
@@ -133,7 +137,7 @@ public class FileMonitor {
 	}
 
 	public interface NewLineListener {
-		public void newLine(String line);
+		public void newLine(boolean firstRead, String line);
 	}
 
 }

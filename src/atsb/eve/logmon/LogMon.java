@@ -7,14 +7,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import atsb.eve.logmon.DirectoryMonitor.NewFileListener;
 import atsb.eve.logmon.MetadataScanner.Logfile;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.scene.Scene;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.layout.BorderPane;
 import javafx.stage.Stage;
 
 public class LogMon extends Application implements NewFileListener {
@@ -23,31 +34,75 @@ public class LogMon extends Application implements NewFileListener {
 	private Map<String, Tab> charTabs;
 	private Map<String, LogTab> logTabs;
 	private DirectoryMonitor dmon;
+	private ObservableList<Filter> filters;
 
 	public LogMon() {
 		mainPane = new TabPane();
 		charTabs = new TreeMap<String, Tab>();
 		logTabs = new TreeMap<String, LogTab>();
-
-		String dir = "C:\\Users\\" + System.getProperty("user.name") + "\\Documents\\EVE\\logs\\Chatlogs";
-		monInit(dir);
-		try {
-			dmon = new DirectoryMonitor(dir);
-			dmon.addListener(this);
-			dmon.start();
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
+		filters = FXCollections.observableArrayList();
+		for (String f : ConfigurationData.getInstance().getListProperty("GlobalFilters")) {
+			filters.add(new Filter(f));
 		}
 	}
 
 	@Override
 	public void start(Stage stage) throws Exception {
 		stage.setTitle("Eve Logmon");
-		Scene scene = new Scene(mainPane, 600, 400);
+
+		MenuBar menuBar = new MenuBar();
+		Menu fileMenu = new Menu("File");
+		MenuItem exitItem = new MenuItem("Exit");
+		exitItem.setOnAction(new EventHandler<ActionEvent>() {
+			@Override
+			public void handle(ActionEvent arg0) {
+				ConfigurationData.getInstance().save();
+				Platform.exit();
+			}
+		});
+		fileMenu.getItems().addAll(exitItem);
+
+		Menu filterMenu = new Menu("Filters");
+		MenuItem globalFiltersItem = new MenuItem("Global");
+		globalFiltersItem.setOnAction(new EventHandler<ActionEvent>() {
+			@Override
+			public void handle(ActionEvent arg0) {
+				FilterTableStage fts = new FilterTableStage(filters);
+				fts.show();
+			}
+		});
+		MenuItem characterFiltersItem = new MenuItem("Character");
+		characterFiltersItem.setOnAction(new EventHandler<ActionEvent>() {
+			@Override
+			public void handle(ActionEvent arg0) {
+			}
+		});
+		MenuItem channelFiltersItem = new MenuItem("Channel");
+		channelFiltersItem.setOnAction(new EventHandler<ActionEvent>() {
+			@Override
+			public void handle(ActionEvent arg0) {
+			}
+		});
+		filterMenu.getItems().addAll(globalFiltersItem, characterFiltersItem, channelFiltersItem);
+
+		menuBar.getMenus().addAll(fileMenu, filterMenu);
+
+		BorderPane bp = new BorderPane();
+		bp.setTop(menuBar);
+		bp.setCenter(mainPane);
+		Scene scene = new Scene(bp, 600, 400);
 		stage.setMinHeight(200);
 		stage.setMinWidth(300);
+		scene.getStylesheets().add(new File("stylesheet.css").toURI().toURL().toString());
 		stage.setScene(scene);
 		stage.show();
+
+		Platform.runLater(new Runnable() {
+			@Override
+			public void run() {
+				monInit();
+			}
+		});
 	}
 
 	@Override
@@ -60,9 +115,11 @@ public class LogMon extends Application implements NewFileListener {
 		if (dmon != null) {
 			dmon.stop();
 		}
+		ConfigurationData.getInstance().save();
 	}
 
-	private void monInit(String dirname) {
+	private void monInit() {
+		String dirname = "C:\\Users\\" + System.getProperty("user.name") + "\\Documents\\EVE\\logs\\Chatlogs";
 		File dir = new File(dirname);
 		if (!dir.exists() || !dir.isDirectory()) {
 			return;
@@ -106,6 +163,15 @@ public class LogMon extends Application implements NewFileListener {
 				e.printStackTrace();
 			}
 		}
+
+		// start to monitor for new files
+		try {
+			dmon = new DirectoryMonitor(dirname);
+			dmon.addListener(this);
+			dmon.start();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
 	}
 
 	/**
@@ -115,12 +181,20 @@ public class LogMon extends Application implements NewFileListener {
 	 * @throws FileNotFoundException
 	 */
 	private synchronized void buildNewLogTab(Logfile logfile) throws FileNotFoundException {
+		ArrayList<String> ignores = ConfigurationData.getInstance().getListProperty("GlobalChannelIgnores");
+		for (String i : ignores) {
+			if (Pattern.compile(i).matcher(logfile.channelName).find()) {
+				return;
+			}
+		}
+
 		Platform.runLater(new Runnable() {
 			@Override
 			public void run() {
 				LogTab logtab;
 				try {
 					logtab = new LogTab(logfile);
+					logtab.setFilters(filters);
 				} catch (FileNotFoundException e) {
 					e.printStackTrace();
 					return;
@@ -140,6 +214,15 @@ public class LogMon extends Application implements NewFileListener {
 					charTab.setClosable(false);
 					mainPane.getTabs().add(charTab);
 					charTabs.put(logfile.channelListener, charTab);
+
+					// clear alerted style on tab select
+					tabpane.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
+						@Override
+						public void changed(ObservableValue<? extends Tab> arg0, Tab oldTab, Tab newTab) {
+							newTab.getStyleClass().remove("alerted");
+							tabpane.requestLayout();
+						}
+					});
 				}
 				logTabs.put(logfile.key(), logtab);
 			}
@@ -148,42 +231,30 @@ public class LogMon extends Application implements NewFileListener {
 
 	@Override
 	public void newFile(File file) {
-		try {
-			Logfile log;
-			try {
-				log = MetadataScanner.quickScan(file);
-				MetadataScanner.deepScan(log);
-			} catch (FileNotFoundException e1) {
-				e1.printStackTrace();
-				return;
+		Platform.runLater(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					Logfile log;
+					try {
+						log = MetadataScanner.quickScan(file);
+						MetadataScanner.deepScan(log);
+					} catch (FileNotFoundException e1) {
+						e1.printStackTrace();
+						return;
+					}
+					System.out.println("Found new file [" + log.key() + "] : " + file.getName());
+					if (logTabs.containsKey(log.key())) {
+						logTabs.get(log.key()).replace(log);
+					} else {
+						buildNewLogTab(log);
+					}
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+				}
 			}
-			System.out.println("Found new file [" + log.key() + "] : " + file.getName());
-
-			if (logTabs.containsKey(log.key())) {
-				logTabs.get(log.key()).replace(log);
-			} else {
-				buildNewLogTab(log);
-			}
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		}
+		});
 	}
-
-	/*if (line.toLowerCase().contains("tackled")) {
-		try {
-			File f = new File("structure.wav").getAbsoluteFile();
-			AudioInputStream audioIn = AudioSystem.getAudioInputStream(f);
-			Clip clip = AudioSystem.getClip();
-			clip.open(audioIn);
-			clip.start();
-		} catch (LineUnavailableException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (UnsupportedAudioFileException e) {
-			e.printStackTrace();
-		}
-	}*/
 
 	public static void main(String[] args) {
 		launch(args);
