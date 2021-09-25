@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-import atsb.eve.logmon.DirectoryMonitor.NewFileListener;
-import atsb.eve.logmon.MetadataScanner.Logfile;
+import dev.pagefault.eve.logmon.DirectoryMonitor.NewFileListener;
+import dev.pagefault.eve.logmon.MetadataScanner.ChatLogFile;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
@@ -100,7 +100,7 @@ public class LogMon extends Application implements NewFileListener {
 		Platform.runLater(new Runnable() {
 			@Override
 			public void run() {
-				monInit();
+				startChatLogMonitor();
 			}
 		});
 	}
@@ -118,9 +118,9 @@ public class LogMon extends Application implements NewFileListener {
 		ConfigurationData.getInstance().save();
 	}
 
-	private void monInit() {
-		String dirname = "C:\\Users\\" + System.getProperty("user.name") + "\\Documents\\EVE\\logs\\Chatlogs";
-		File dir = new File(dirname);
+	private void startChatLogMonitor() {
+		String chatDirname = "C:\\Users\\" + System.getProperty("user.name") + "\\Documents\\EVE\\logs\\Chatlogs";
+		File dir = new File(chatDirname);
 		if (!dir.exists() || !dir.isDirectory()) {
 			return;
 		}
@@ -128,11 +128,11 @@ public class LogMon extends Application implements NewFileListener {
 		// build a list of files that were started within the last 24hrs
 		// since we need to open each file to see who the listener is, this step
 		// significantly reduces the initial load time on large log directories
-		List<Logfile> recentLogs = new ArrayList<Logfile>();
+		List<ChatLogFile> recentLogs = new ArrayList<ChatLogFile>();
 		for (String filename : dir.list()) {
-			Logfile log;
+			ChatLogFile log;
 			try {
-				log = MetadataScanner.quickScan(new File(dirname + File.separator + filename));
+				log = MetadataScanner.quickScanChatLog(new File(chatDirname + File.separator + filename));
 			} catch (FileNotFoundException e1) {
 				e1.printStackTrace();
 				continue;
@@ -143,9 +143,9 @@ public class LogMon extends Application implements NewFileListener {
 		}
 
 		// find the latest log, per channel, per listener
-		Map<String, Logfile> initial = new TreeMap<String, Logfile>();
-		for (Logfile l : recentLogs) {
-			MetadataScanner.deepScan(l);
+		Map<String, ChatLogFile> initial = new TreeMap<String, ChatLogFile>();
+		for (ChatLogFile l : recentLogs) {
+			MetadataScanner.deepScanChatLog(l);
 			if (initial.containsKey(l.key())) {
 				if (l.started.isAfter(initial.get(l.key()).started)) {
 					initial.replace(l.key(), l);
@@ -156,7 +156,7 @@ public class LogMon extends Application implements NewFileListener {
 		}
 
 		// finally build the tabs (which start the listeners)
-		for (Logfile l : initial.values()) {
+		for (ChatLogFile l : initial.values()) {
 			try {
 				buildNewLogTab(l);
 			} catch (FileNotFoundException e) {
@@ -166,12 +166,16 @@ public class LogMon extends Application implements NewFileListener {
 
 		// start to monitor for new files
 		try {
-			dmon = new DirectoryMonitor(dirname);
+			dmon = new DirectoryMonitor(chatDirname);
 			dmon.addListener(this);
 			dmon.start();
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private void startGameLogMonitor() {
+		String gameDirname = "C:\\Users\\" + System.getProperty("user.name") + "\\Documents\\EVE\\logs\\Gamelogs";
 	}
 
 	/**
@@ -180,7 +184,7 @@ public class LogMon extends Application implements NewFileListener {
 	 * @param logfile
 	 * @throws FileNotFoundException
 	 */
-	private synchronized void buildNewLogTab(Logfile logfile) throws FileNotFoundException {
+	private synchronized void buildNewLogTab(final ChatLogFile logfile) throws FileNotFoundException {
 		ArrayList<String> ignores = ConfigurationData.getInstance().getListProperty("GlobalChannelIgnores");
 		for (String i : ignores) {
 			if (Pattern.compile(i).matcher(logfile.channelName).find()) {
@@ -208,7 +212,7 @@ public class LogMon extends Application implements NewFileListener {
 				} else {
 					// create new character tab
 					Tab charTab = new Tab(logfile.channelListener);
-					TabPane tabpane = new TabPane();
+					final TabPane tabpane = new TabPane();
 					tabpane.getTabs().add(logtab);
 					charTab.setContent(tabpane);
 					charTab.setClosable(false);
@@ -230,15 +234,15 @@ public class LogMon extends Application implements NewFileListener {
 	}
 
 	@Override
-	public void newFile(File file) {
+	public void newFile(final File file) {
 		Platform.runLater(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					Logfile log;
+					ChatLogFile log;
 					try {
-						log = MetadataScanner.quickScan(file);
-						MetadataScanner.deepScan(log);
+						log = MetadataScanner.quickScanChatLog(file);
+						MetadataScanner.deepScanChatLog(log);
 					} catch (FileNotFoundException e1) {
 						e1.printStackTrace();
 						return;

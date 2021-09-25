@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.io.File;
 import java.io.FileNotFoundException;

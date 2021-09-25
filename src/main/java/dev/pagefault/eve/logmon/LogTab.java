@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -11,8 +11,8 @@ import javax.sound.sampled.Clip;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.UnsupportedAudioFileException;
 
-import atsb.eve.logmon.FileMonitor.NewLineListener;
-import atsb.eve.logmon.MetadataScanner.Logfile;
+import dev.pagefault.eve.logmon.FileMonitor.NewLineListener;
+import dev.pagefault.eve.logmon.MetadataScanner.ChatLogFile;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -21,13 +21,13 @@ import javafx.scene.control.TextArea;
 
 public class LogTab extends Tab implements NewLineListener {
 
-	private Logfile logfile;
+	private ChatLogFile logfile;
 	private FileMonitor monitor;
 	private TextArea text;
 	private int maxLines = 100;
 	private ObservableList<Filter> filters;
 
-	public LogTab(Logfile log) throws FileNotFoundException {
+	public LogTab(ChatLogFile log) throws FileNotFoundException {
 		filters = FXCollections.observableArrayList();
 		logfile = log;
 		text = new TextArea() {
@@ -55,7 +55,7 @@ public class LogTab extends Tab implements NewLineListener {
 		monitor.start();
 	}
 
-	public void replace(Logfile log) throws FileNotFoundException {
+	public void replace(ChatLogFile log) throws FileNotFoundException {
 		kill();
 		logfile = log;
 		monitor = new FileMonitor(logfile);
@@ -77,7 +77,7 @@ public class LogTab extends Tab implements NewLineListener {
 	}
 
 	@Override
-	public void newLine(boolean firstRead, String line) {
+	public void newLine(boolean firstRead, final String line) {
 		Platform.runLater(new Runnable() {
 			@Override
 			public void run() {
@@ -88,7 +88,7 @@ public class LogTab extends Tab implements NewLineListener {
 			for (Filter filter : filters) {
 				if (Pattern.compile(filter.getExpression()).matcher(line).find()) {
 					try {
-						File f = new File("blip.wav").getAbsoluteFile();
+						File f = new File("res/blip.wav").getAbsoluteFile();
 						AudioInputStream audioIn = AudioSystem.getAudioInputStream(f);
 						Clip clip = AudioSystem.getClip();
 						clip.open(audioIn);

@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -22,7 +22,7 @@ public class ConfigurationData extends Properties {
 
 	private void load() {
 		try {
-			load(new FileInputStream("config.properties"));
+			load(new FileInputStream("cfg/config.properties"));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -30,7 +30,7 @@ public class ConfigurationData extends Properties {
 
 	public void save() {
 		try {
-			store(new FileOutputStream("config.properties"), null);
+			store(new FileOutputStream("cfg/config.properties"), null);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import atsb.eve.logmon.MetadataScanner.Logfile;
+import dev.pagefault.eve.logmon.MetadataScanner.ChatLogFile;
 
 /**
  * Monitors a chatlog file for new lines
@@ -20,12 +20,12 @@ public class FileMonitor {
 
 	private static final long SLEEP_MILLIS = 500;
 
-	private Logfile logfile;
+	private ChatLogFile logfile;
 	private List<NewLineListener> listeners;
 	private Thread t;
 	private boolean paused;
 
-	public FileMonitor(Logfile log) throws FileNotFoundException {
+	public FileMonitor(ChatLogFile log) throws FileNotFoundException {
 		if (log.file == null || !log.file.isFile() || !log.file.exists()) {
 			throw new FileNotFoundException();
 		}
@@ -34,7 +34,7 @@ public class FileMonitor {
 		paused = false;
 	}
 
-	public Logfile getLogfile() {
+	public ChatLogFile getLogfile() {
 		return logfile;
 	}
 

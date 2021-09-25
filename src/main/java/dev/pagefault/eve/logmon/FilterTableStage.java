@@ -1,4 +1,4 @@
-package atsb.eve.logmon;
+package dev.pagefault.eve.logmon;
 
 import java.util.ArrayList;
 
@@ -16,13 +16,14 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 public class FilterTableStage extends Stage {
 
-	public FilterTableStage(ObservableList<Filter> filters) {
+	public FilterTableStage(final ObservableList<Filter> filters) {
 		BorderPane bp = new BorderPane();
 
-		TableView<Filter> table = new TableView<Filter>(filters);
+		final TableView<Filter> table = new TableView<Filter>(filters);
 		table.setEditable(false);
 		table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 		TableColumn tc0 = new TableColumn("Expression");
@@ -32,7 +33,7 @@ public class FilterTableStage extends Stage {
 		bp.setCenter(table);
 
 		HBox hb = new HBox();
-		TextField addExpression = new TextField();
+		final TextField addExpression = new TextField();
 		addExpression.setPrefWidth(140);
 		addExpression.setPromptText("regex");
 		Button addButton = new Button("Add");
@@ -63,8 +64,11 @@ public class FilterTableStage extends Stage {
 		hb.getChildren().addAll(addExpression, addButton, removeButton);
 		bp.setBottom(hb);
 
-		setOnCloseRequest(event -> {
-			ConfigurationData.getInstance().save();
+		setOnCloseRequest(new EventHandler<WindowEvent>() {
+			@Override
+			public void handle(WindowEvent event) {
+				ConfigurationData.getInstance().save();
+			}
 		});
 
 		Scene scene = new Scene(bp, 300, 400);
